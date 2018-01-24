@@ -1,8 +1,13 @@
 import json
+import pickle
+import redis
+
+from multiprocessing import Manager
 
 import logging
 import uuid
 
+from gevent import monkey; monkey.patch_socket()
 from gevent.pywsgi import WSGIServer
 from geventwebsocket.handler import WebSocketHandler
 from geventwebsocket.resource import Resource, WebSocketApplication
@@ -31,8 +36,35 @@ class MemoryBroker():
         self.sockets[key].remove(socket)
 
 
-broker = MemoryBroker()
+#broker = MemoryBroker()
 
+class RedisBroker():
+    def __init__(self):
+        self.r = redis.Redis(host='localhost',port=6379,db=0)
+        self.prefix = 'chtsrv_sk:'
+
+    def subscribe(self, key, socket):
+        self.r.sadd(self.prefix + key, chat2info(socket))
+
+    def publish(self, key, data):
+        for member in self.r.smembers(self.prefix + key):
+            socket = info2chat(member)
+            socket.on_broadcast(data)
+
+    def unsubscribe(self, key, socket):
+        self.r.srem(self.prefix + key, chat2info(socket))
+
+
+broker = RedisBroker()
+
+def chat2info(obj):
+    return pickle.dumps(obj.userid)
+
+def info2chat(info):
+    print(info)
+    chat = Chat()
+    chat.userid = pickle.loads(info)
+    return chat
 
 class Chat(WebSocketApplication):
 
@@ -67,4 +99,5 @@ application = Resource([
 
 
 if __name__ == '__main__':
+    print("script mode")
     WSGIServer('{}:{}'.format('0.0.0.0', 8000), application, handler_class=WebSocketHandler).serve_forever()
