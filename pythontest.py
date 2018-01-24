@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 import unittest
 import impl
 
@@ -149,3 +150,5 @@ class PythonTest(unittest.TestCase):
     <div class="message-content">ありがとうございます。</div>
 </li>''', impl.render_messages(messages, current_userid=2))
 
+if __name__ == '__main__':
+    unittest.main()
