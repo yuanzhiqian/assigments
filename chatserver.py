@@ -7,6 +7,7 @@ from multiprocessing import Manager
 import logging
 import uuid
 
+import gevent
 from gevent import monkey; monkey.patch_socket()
 from gevent.pywsgi import WSGIServer
 from geventwebsocket.handler import WebSocketHandler
@@ -38,33 +39,77 @@ class MemoryBroker():
 
 #broker = MemoryBroker()
 
-class RedisBroker():
+#class RedisBroker():
+#    def __init__(self):
+#        self.r = redis.Redis(host='localhost',port=6379,db=0)
+#        self.prefix = 'chtsrv_sk:'
+#
+#    def subscribe(self, key, socket):
+#        self.r.sadd(self.prefix + key, chat2info(socket))
+#
+#    def publish(self, key, data):
+#        for member in self.r.smembers(self.prefix + key):
+#            socket = info2chat(member)
+#            socket.on_broadcast(data)
+#
+#    def unsubscribe(self, key, socket):
+#        self.r.srem(self.prefix + key, chat2info(socket))
+#
+#
+#broker = RedisBroker()
+#
+#
+#def chat2info(obj):
+#    return pickle.dumps(obj.userid)
+#
+#def info2chat(info):
+#    print(info)
+#    chat = Chat()
+#    chat.userid = pickle.loads(info)
+#    return chat
+
+
+class MemoryBrokerWithRedis():
     def __init__(self):
+        self.subscribers = {}
         self.r = redis.Redis(host='localhost',port=6379,db=0)
-        self.prefix = 'chtsrv_sk:'
+
+    def courier(self, key, socket, ps):
+        ps.subscribe([key])
+        for item in ps.listen():
+            print(item)
+            if item['type'] == 'message':
+                socket.on_broadcast(json.loads(item['data'].decode('utf-8')))
+
+        print('bye!')
 
     def subscribe(self, key, socket):
-        self.r.sadd(self.prefix + key, chat2info(socket))
+        if key not in self.subscribers:
+            self.subscribers[key] = dict()
+
+        if socket.userid.hex in self.subscribers[key]:
+            return
+
+        ps = self.r.pubsub()
+        self.subscribers[key][socket.userid.hex] = ps
+
+        gevent.spawn(self.courier, key, socket, ps)
 
     def publish(self, key, data):
-        for member in self.r.smembers(self.prefix + key):
-            socket = info2chat(member)
-            socket.on_broadcast(data)
+        self.r.publish(key, json.dumps(data))
 
     def unsubscribe(self, key, socket):
-        self.r.srem(self.prefix + key, chat2info(socket))
+        if key not in self.subscribers: return
+
+        ps = self.subscribers[key][socket.userid.hex]
+        ps.unsubscribe()
+        del self.subscribers[key][socket.userid.hex]
+
+        if socket.userid.hex not in self.subscribers[key]: print('unsubscribed')
 
 
-broker = RedisBroker()
+broker = MemoryBrokerWithRedis()
 
-def chat2info(obj):
-    return pickle.dumps(obj.userid)
-
-def info2chat(info):
-    print(info)
-    chat = Chat()
-    chat.userid = pickle.loads(info)
-    return chat
 
 class Chat(WebSocketApplication):
 
