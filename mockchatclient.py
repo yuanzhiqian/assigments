@@ -34,6 +34,6 @@ def client(lable):
     #ws.close()
 
 if __name__ == '__main__':
-    gevent.joinall([gevent.spawn(client, 'client' + str(i)) for i in range(10)])
+    gevent.joinall([gevent.spawn(client, 'client' + str(i)) for i in range(1000)])
     #client('single client')
 
