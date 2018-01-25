@@ -77,11 +77,11 @@ class MemoryBrokerWithRedis():
     def courier(self, key, socket, ps):
         ps.subscribe([key])
         for item in ps.listen():
-            print(item)
+            #print(item)
             if item['type'] == 'message':
                 socket.on_broadcast(json.loads(item['data'].decode('utf-8')))
 
-        print('bye!')
+        #print('bye!')
 
     def subscribe(self, key, socket):
         if key not in self.subscribers:
@@ -105,7 +105,7 @@ class MemoryBrokerWithRedis():
         ps.unsubscribe()
         del self.subscribers[key][socket.userid.hex]
 
-        if socket.userid.hex not in self.subscribers[key]: print('unsubscribed')
+        #if socket.userid.hex not in self.subscribers[key]: print('unsubscribed')
 
 
 broker = MemoryBrokerWithRedis()
@@ -144,5 +144,5 @@ application = Resource([
 
 
 if __name__ == '__main__':
-    print("script mode")
+    #print("script mode")
     WSGIServer('{}:{}'.format('0.0.0.0', 8000), application, handler_class=WebSocketHandler).serve_forever()
